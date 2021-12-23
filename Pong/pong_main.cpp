@@ -15,17 +15,17 @@ int main(int argc, char* argv[])
     try {
         auto game = PongGame{};
         game.init();
-        // Bad hack...
-        auto const base_path = path{SDL_GetBasePath()};
-        auto const image_dir = base_path / path{"Images"};
-        auto const image_path = image_dir / path{"table_tennis.bmp"};
+
+        auto const image_path = game.hal().image_path() / path{"table_tennis.bmp"};
+        // ReSharper disable once CppTooWideScope
         auto const paddle_image = game.load_media(image_path);
 
         if (paddle_image) {
-            game.show_media(paddle_image.get());
+            game.add_draw_callback([&game, &paddle_image]() {
+                game.show_centered_image(paddle_image.get());
+            });
         }
 
-        game.draw();
         game.run_event_loop();
         return 0;
     }

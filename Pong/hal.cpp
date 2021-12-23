@@ -6,9 +6,7 @@
 
 using std::filesystem::path, std::filesystem::exists;
 
-SdlHal::SdlHal()
-    : window_{create_window()}, screen_surface_{create_surface(window_)}
-{}
+SdlHal::SdlHal() : window_{create_window()}, screen_surface_{create_surface(window_)} {}
 
 SdlHal::~SdlHal()
 {
@@ -24,16 +22,53 @@ void SdlHal::delay(double time_in_ms)
 }
 
 // ReSharper disable once CppMemberFunctionMayBeConst
-void SdlHal::init()
+void SdlHal::init() { SDL_UpdateWindowSurface(window_); }
+
+// ReSharper disable once CppMemberFunctionMayBeStatic
+std::optional<SdlHal::Event> SdlHal::get_next_event() const
+{
+    Event event{};
+    if (SDL_PollEvent(&event) != 0) {
+        return event;
+    }
+    return {};
+}
+
+void SdlHal::refresh_window() const
 {
     SDL_FillRect(
         screen_surface_, nullptr,
         SDL_MapRGB(screen_surface_->format, 0xFF, 0xFF, 0xFF));
+
+    for (auto& fun : draw_callbacks_) {
+        if (fun) {
+            fun();
+        }
+    }
     SDL_UpdateWindowSurface(window_);
 }
 
-SdlHal::UniqueMediaPtrType
-SdlHal::load_media(std::filesystem::path const& media_path) const
+// ReSharper disable once CppMemberFunctionMayBeStatic
+
+std::filesystem::path SdlHal::base_path() const
+{
+    if (!base_path_.has_value()) {
+        base_path_ = {SDL_GetBasePath()};
+    }
+    return *base_path_;
+}
+
+std::filesystem::path SdlHal::image_path() const
+{
+    return base_path() / std::filesystem::path{"Images"};
+}
+
+void SdlHal::add_draw_callback(DrawCallback fun)
+{
+    draw_callbacks_.push_back(std::move(fun));
+}
+
+SdlHal::UniqueMediaPtr SdlHal::load_media(std::filesystem::path const& media_path) const
 {
 
     if (exists(media_path)) {
@@ -43,27 +78,13 @@ SdlHal::load_media(std::filesystem::path const& media_path) const
     return {};
 }
 
-// ReSharper disable once CppMemberFunctionMayBeStatic
-std::optional<SdlHal::Event> SdlHal::get_next_event() const
-{
-    Event event{};
-    if (SDL_PollEvent(&event) != 0) {
-        return event;
-    }
-    else {
-        return {};
-    }
-}
-
-void SdlHal::show_media(MediaType* media) const
+void SdlHal::show_centered_image(Media* media) const
 {
     if (media) {
         auto [media_rect, screen_rect] = compute_centered_boundary_rects(media);
         SDL_BlitSurface(media, &media_rect, screen_surface_, &screen_rect);
     }
 }
-
-void SdlHal::draw() const { SDL_UpdateWindowSurface(window_); }
 
 SDL_Window* SdlHal::create_window()
 {
@@ -73,7 +94,7 @@ SDL_Window* SdlHal::create_window()
 
     auto* window = SDL_CreateWindow(
         "Pong!", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, screen_width,
-        screen_height, SDL_WINDOW_SHOWN);
+        screen_height, SDL_WINDOW_RESIZABLE);
 
     if (!window) {
         throw CouldNotCreateWindow{SDL_GetError()};
@@ -93,7 +114,7 @@ SDL_Surface* SdlHal::create_surface(SDL_Window* window)
 
 
 std::pair<SDL_Rect, SDL_Rect>
-SdlHal::compute_centered_boundary_rects(MediaType* media) const
+SdlHal::compute_centered_boundary_rects(Media* media) const
 {
     SDL_Rect media_rect, screen_rect;
     SDL_GetClipRect(media, &media_rect);

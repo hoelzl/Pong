@@ -17,20 +17,27 @@ public:
 
     void init();
 
-    typename Hal::UniqueMediaPtrType
-    load_media(std::filesystem::path const& media_path);
+    typename Hal::UniqueMediaPtr load_media(std::filesystem::path const& media_path);
+
+    void add_draw_callback(typename Hal::DrawCallback draw_callback)
+    {
+        hal_.add_draw_callback(std::move(draw_callback));
+    }
 
     void run_event_loop();
 
-    void show_media(typename Hal::MediaType* media) const;
+    void show_centered_image(typename Hal::Media* media) const;
     void draw() const;
 
     [[nodiscard]] bool quit() const { return quit_; }
     void quit(bool quit) { quit_ = quit; }
 
-private:
-    Hal device_{};
+    [[nodiscard]] Hal const& hal() const { return hal_; }
 
+private:
+    Hal hal_{};
+
+private:
     bool quit_{false};
     uint32_t last_tick_time_{};
 
@@ -40,14 +47,14 @@ private:
 template <HardwareAbstractionLayer Hal>
 void Game<Hal>::init()
 {
-    device_.init();
+    hal_.init();
 }
 
 template <HardwareAbstractionLayer Hal>
-typename Hal::UniqueMediaPtrType
+typename Hal::UniqueMediaPtr
 Game<Hal>::load_media(std::filesystem::path const& media_path)
 {
-    return device_.load_media(media_path);
+    return hal_.load_media(media_path);
 }
 
 template <HardwareAbstractionLayer Hal>
@@ -56,24 +63,25 @@ void Game<Hal>::run_event_loop()
     while (!quit_) {
         wait_for_tick();
         // VC++ cannot infer the type for event, even though it should be able to...
-        while (std::optional<typename Hal::Event> event = device_.get_next_event()) {
+        while (std::optional<typename Hal::Event> event = hal_.get_next_event()) {
             if (Hal::event_type(*event) == Hal::quit_event) {
                 quit_ = true;
             }
         }
+        draw();
     }
 }
 
 template <HardwareAbstractionLayer Hal>
-void Game<Hal>::show_media(typename Hal::MediaType* media) const
+void Game<Hal>::show_centered_image(typename Hal::Media* media) const
 {
-    device_.show_media(media);
+    hal_.show_centered_image(media);
 }
 
 template <HardwareAbstractionLayer Hal>
 void Game<Hal>::draw() const
 {
-    device_.draw();
+    hal_.refresh_window();
 }
 
 template <HardwareAbstractionLayer Hal>
